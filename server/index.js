@@ -1,48 +1,109 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import { initDB } from './db.js';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
-// Route imports
+import { PrismaClient } from '@prisma/client';
+
+// Import des routes
 import authRoutes from './routes/auth.js';
 import productRoutes from './routes/products.js';
 import userRoutes from './routes/users.js';
 import cartRoutes from './routes/cart.js';
 import adminRoutes from './routes/admin.js';
 import categoryRoutes from './routes/categories.js';
+import settingsRoutes from './routes/settings.js';
+
+import helmet from 'helmet';
+import morgan from 'morgan';
+import rateLimit from 'express-rate-limit';
 
 dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-app.use(cors());
+// Prisma Client
+const prisma = new PrismaClient({
+  log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
+});
+
+// Middleware de Sécurité & Logging
+app.use(helmet({
+  crossOriginResourcePolicy: false, // Nécessaire pour servir des images locales si besoin
+}));
+app.use(morgan('dev'));
+
+// Rate Limiting (Protection brute force)
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limite chaque IP à 100 requêtes par fenêtre
+  message: { error: 'Trop de requêtes, veuillez réessayer plus tard.' }
+});
+app.use('/api/', limiter);
+
+// Configuration CORS restreinte en production
+const allowedOrigins = [
+  'http://localhost:5173',
+  process.env.FRONTEND_URL
+].filter(Boolean);
+
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Non autorisé par CORS'));
+    }
+  },
+  credentials: true
+}));
+
 app.use(express.json());
+app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
 
-async function startServer() {
-  try {
-    const db = await initDB();
-    console.log('Database initialized successfully');
+// API Routes (on passe prisma à chaque route)
+app.use('/api/auth', authRoutes(prisma));
+app.use('/api/products', productRoutes(prisma));
+app.use('/api/users', userRoutes(prisma));
+app.use('/api/cart', cartRoutes(prisma));
+app.use('/api/admin', adminRoutes(prisma));
+app.use('/api/categories', categoryRoutes(prisma));
+app.use('/api/settings', settingsRoutes(prisma));
 
-    // API Routes
-    app.use('/api/auth', authRoutes(db));
-    app.use('/api/products', productRoutes(db));
-    app.use('/api/users', userRoutes(db));
-    app.use('/api/cart', cartRoutes(db));
-    app.use('/api/admin', adminRoutes(db));
-    app.use('/api/categories', categoryRoutes(db));
+app.get('/api/health', (req, res) => {
+  res.json({ 
+    status: 'ok', 
+    database: 'Prisma + Neon',
+    environment: process.env.NODE_ENV || 'development'
+  });
+});
 
-    app.get('/api/health', (req, res) => {
-      res.json({ status: 'ok', database: 'connected' });
-    });
+// ==================== PRODUCTION : Servir le Frontend React ====================
+if (process.env.NODE_ENV === 'production') {
+  const clientBuildPath = path.join(__dirname, '../client/build'); // Change en '../build' si ton dossier React est différent
+  
+  app.use(express.static(clientBuildPath));
 
-    app.listen(PORT, () => {
-      console.log(`Server is running on port ${PORT}`);
-    });
-  } catch (error) {
-    console.error('Failed to initialize database:', error);
-    process.exit(1);
-  }
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(clientBuildPath, 'index.html'));
+  });
 }
 
-startServer();
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on http://localhost:${PORT}`);
+  console.log(`📡 Environment: ${process.env.NODE_ENV || 'development'}`);
+});
+
+// Graceful shutdown
+process.on('SIGINT', async () => {
+  console.log('🛑 Shutting down gracefully...');
+  await prisma.$disconnect();
+  process.exit(0);
+});
+
+export default app;

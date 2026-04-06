@@ -45,3 +45,23 @@
     scrollbar-width: none;
   }
 }
+
+.scrollbar-categories {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch; /* Mobile touch scrolling */
+  scrollbar-width: thin; /* Firefox */
+  scrollbar-color: #25D366 transparent; /* Firefox */
+}
+.scrollbar-categories::-webkit-scrollbar {
+  height: 4px !important;
+  display: block !important;
+  -webkit-appearance: none;
+}
+.scrollbar-categories::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 10px;
+}
+.scrollbar-categories::-webkit-scrollbar-thumb {
+  background: #25D366 !important;
+  border-radius: 10px;
+}

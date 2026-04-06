@@ -5,7 +5,7 @@ import jwt from 'jsonwebtoken';
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'easymarkey_secret_key';
 
-export default function authRoutes(db) {
+export default function authRoutes(prisma) {
   // Register
   router.post('/register', async (req, res) => {
     try {
@@ -16,7 +16,10 @@ export default function authRoutes(db) {
       }
 
       // Check if user exists
-      const existingUser = await db.get('SELECT * FROM User WHERE whatsapp = ?', [whatsapp]);
+      const existingUser = await prisma.user.findUnique({
+        where: { whatsapp }
+      });
+      
       if (existingUser) {
         return res.status(400).json({ error: 'Ce numéro WhatsApp est déjà utilisé' });
       }
@@ -25,12 +28,17 @@ export default function authRoutes(db) {
       const hashedPassword = await bcrypt.hash(password, 10);
 
       // Insert user
-      const result = await db.run(
-        'INSERT INTO User (nom, prenom, whatsapp, email, password) VALUES (?, ?, ?, ?, ?)',
-        [nom, prenom, whatsapp, email, hashedPassword]
-      );
+      const user = await prisma.user.create({
+        data: {
+          nom,
+          prenom,
+          whatsapp,
+          email,
+          password: hashedPassword
+        }
+      });
 
-      res.status(201).json({ message: 'Utilisateur créé avec succès', userId: result.lastID });
+      res.status(201).json({ message: 'Utilisateur créé avec succès', userId: user.id });
     } catch (error) {
       console.error(error);
       res.status(500).json({ error: 'Erreur lors de l’inscription' });
@@ -46,7 +54,10 @@ export default function authRoutes(db) {
         return res.status(400).json({ error: 'Numéro WhatsApp et mot de passe requis' });
       }
 
-      const user = await db.get('SELECT * FROM User WHERE whatsapp = ?', [whatsapp]);
+      const user = await prisma.user.findUnique({
+        where: { whatsapp }
+      });
+      
       if (!user) {
         return res.status(400).json({ error: 'Utilisateur non trouvé' });
       }

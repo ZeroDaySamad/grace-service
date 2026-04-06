@@ -1,10 +1,9 @@
 generator client {
   provider = "prisma-client-js"
 }
-
 datasource db {
-  provider = "sqlite"
-  url      = "file:./dev.db"
+  provider = "postgresql" 
+  url      = env("DATABASE_URL")
 }
 
 model User {
@@ -13,6 +12,7 @@ model User {
   prenom       String
   whatsapp     String    @unique
   email        String?
+  avatar       String?
   password     String
   ville        String?
   role         String    @default("USER")
@@ -31,6 +31,7 @@ model Product {
   price           Float
   image           String
   category        String
+  ville           String?
   whatsapp_clicks Int       @default(0)
   seller          User      @relation(fields: [sellerId], references: [id])
   sellerId        Int
@@ -47,4 +48,14 @@ model CartItem {
   quantity  Int      @default(1)
 
   @@unique([userId, productId])
+}
+
+model Category {
+  id    Int    @id @default(autoincrement())
+  name  String @unique
+}
+
+model Settings {
+  key   String @id
+  value String
 }

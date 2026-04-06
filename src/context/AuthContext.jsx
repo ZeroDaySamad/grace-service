@@ -10,16 +10,10 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check for existing token
     const storedToken = localStorage.getItem('token');
     const storedUser = localStorage.getItem('user');
-    
-    if (storedToken) {
-      setToken(storedToken);
-    }
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
-    }
+    if (storedToken) setToken(storedToken);
+    if (storedUser) setUser(JSON.parse(storedUser));
     setLoading(false);
   }, []);
 
@@ -38,6 +32,14 @@ export const AuthProvider = ({ children }) => {
   };
 
   const updateUserInfo = (newData) => {
+    if (!user) return; // Prevent updates if already logged out
+    
+    // Ensure we don't accidentally update to another user
+    if (newData.id && newData.id !== user.id) {
+        console.warn('Attempted to update user info for a different ID. Ignoring.');
+        return;
+    }
+
     const updatedUser = { ...user, ...newData };
     localStorage.setItem('user', JSON.stringify(updatedUser));
     setUser(updatedUser);

@@ -10,6 +10,8 @@ import Profile from './pages/Profile';
 import { AuthPages } from './pages/AuthPages';
 import AdminLogin from './pages/Admin/AdminLogin';
 import AdminDashboard from './pages/Admin/AdminDashboard';
+import Contact from './pages/Contact';
+import Footer from './components/Footer';
 import { useLocation } from 'react-router-dom';
 
 const ProtectedRoute = ({ children }) => {
@@ -19,14 +21,29 @@ const ProtectedRoute = ({ children }) => {
 };
 
 const AdminRoute = ({ children }) => {
-  const { user, loading } = useAuth();
-  if (loading) return null;
-  return (user && user.role === 'ADMIN') ? children : <Navigate to="/admin/login" />;
+  // Admin uses its own separate localStorage key — never touches user session
+  const adminToken = localStorage.getItem('admin_token');
+  if (!adminToken) return <Navigate to="/admin/login" />;
+  return children;
 };
 
 function AppContent() {
   const location = useLocation();
   const isAdminRoute = location.pathname.startsWith('/admin');
+
+  React.useEffect(() => {
+    if (location.hash) {
+      const id = location.hash.replace('#', '');
+      const element = document.getElementById(id);
+      if (element) {
+        setTimeout(() => {
+          element.scrollIntoView({ behavior: 'smooth' });
+        }, 100);
+      }
+    } else {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [location.pathname, location.hash]);
 
   return (
     <div className={`min-h-screen pb-20 md:pb-0 ${!isAdminRoute ? 'md:pt-16 bg-gray-50' : 'bg-white'}`}>
@@ -42,6 +59,7 @@ function AppContent() {
               <Profile />
             </ProtectedRoute>
           } />
+          <Route path="/contact" element={<Contact />} />
           
           {/* Admin Routes */}
           <Route path="/admin" element={<Navigate to="/admin/dashboard" />} />
@@ -55,6 +73,7 @@ function AppContent() {
           } />
         </Routes>
       </main>
+      {!isAdminRoute && <Footer />}
     </div>
   );
 }

@@ -2,12 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { 
     Users, Package, TrendingUp, ShieldCheck, Search, Trash2, 
     ArrowRight, CheckCircle2, XCircle, LogOut, LayoutDashboard, 
-    MessageCircle, Code2, ExternalLink, Calendar, CreditCard, ChevronRight,
-    Users2, ShoppingBag, BarChart3, Mail, Phone, MapPin, Loader2
+    MessageCircle, Code2, ExternalLink, Calendar, CreditCard, ChevronRight, Key,
+    Users2, ShoppingBag, BarChart3, Mail, Phone, MapPin, Loader2, Settings
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
+import logo from '../../assets/heroassets/Logo dynamique de Grace Service.png';
+import API_URL from '../../utils/config';
 
 const AdminDashboard = () => {
     const [activeTab, setActiveTab] = useState('overview');
@@ -17,8 +18,18 @@ const AdminDashboard = () => {
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [newCategory, setNewCategory] = useState('');
-    const { logout, token } = useAuth();
+    const [planPrice, setPlanPrice] = useState('');
+    const [isUpdatingPrice, setIsUpdatingPrice] = useState(false);
     const navigate = useNavigate();
+
+    // Use SEPARATE admin session keys — never touch the user's session
+    const token = localStorage.getItem('admin_token');
+
+    const handleAdminLogout = () => {
+        localStorage.removeItem('admin_token');
+        localStorage.removeItem('admin_user');
+        navigate('/admin/login');
+    };
 
     useEffect(() => {
         if (!token) {
@@ -33,9 +44,9 @@ const AdminDashboard = () => {
         try {
             const headers = { 'Authorization': `Bearer ${token}` };
             const [statsRes, usersRes, prodsRes] = await Promise.all([
-                fetch('http://localhost:5000/api/admin/stats', { headers }),
-                fetch('http://localhost:5000/api/admin/users', { headers }),
-                fetch('http://localhost:5000/api/admin/products', { headers })
+                fetch(`${API_URL}/admin/stats`, { headers }),
+                fetch(`${API_URL}/admin/users`, { headers }),
+                fetch(`${API_URL}/admin/products`, { headers })
             ]);
 
             const statsData = await statsRes.json();
@@ -45,6 +56,11 @@ const AdminDashboard = () => {
             setStats(statsData);
             setUsers(usersData);
             setProducts(prodsData);
+
+            // Fetch current plan price
+            const settingsRes = await fetch(`${API_URL}/settings/plan_price`);
+            const settingsData = await settingsRes.json();
+            if (settingsData.value) setPlanPrice(settingsData.value);
         } catch (error) {
             console.error('Error fetching admin data:', error);
         } finally {
@@ -55,7 +71,7 @@ const AdminDashboard = () => {
     const handleDeleteUser = async (id) => {
         if (!window.confirm('Êtes-vous sûr de vouloir supprimer cet utilisateur ? Toutes ses données seront effacées.')) return;
         try {
-            const res = await fetch(`http://localhost:5000/api/admin/users/${id}`, {
+            const res = await fetch(`${API_URL}/admin/users/${id}`, {
                 method: 'DELETE',
                 headers: { 'Authorization': `Bearer ${token}` }
             });
@@ -67,7 +83,7 @@ const AdminDashboard = () => {
 
     const handleActivatePlan = async (userId, type, months) => {
         try {
-            const res = await fetch(`http://localhost:5000/api/admin/users/${userId}/activate-plan`, {
+            const res = await fetch(`${API_URL}/admin/users/${userId}/activate-plan`, {
                 method: 'PATCH',
                 headers: { 
                     'Authorization': `Bearer ${token}`,
@@ -87,7 +103,7 @@ const AdminDashboard = () => {
     const handleCancelPlan = async (userId) => {
         if (!window.confirm('Êtes-vous sûr de vouloir annuler le plan de cet utilisateur ?')) return;
         try {
-            const res = await fetch(`http://localhost:5000/api/admin/users/${userId}/cancel-plan`, {
+            const res = await fetch(`${API_URL}/admin/users/${userId}/cancel-plan`, {
                 method: 'PATCH',
                 headers: { 'Authorization': `Bearer ${token}` }
             });
@@ -99,12 +115,39 @@ const AdminDashboard = () => {
             console.error('Error canceling plan:', error);
         }
     };
+    
+    const handleResetPassword = async (userId) => {
+        const newPassword = window.prompt("Entrez le nouveau mot de passe temporaire :");
+        if (!newPassword || newPassword.length < 8) {
+            if (newPassword) alert("Le mot de passe doit faire au moins 8 caractères.");
+            return;
+        }
+        
+        try {
+            const res = await fetch(`${API_URL}/admin/users/${userId}/reset-password`, {
+                method: 'PATCH',
+                headers: { 
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ new_password: newPassword })
+            });
+            if (res.ok) {
+                alert('Mot de passe réinitialisé avec succès !');
+            } else {
+                const data = await res.json();
+                alert(data.error || 'Erreur lors de la réinitialisation');
+            }
+        } catch (error) {
+            console.error('Error resetting password:', error);
+        }
+    };
 
     const handleAddCategory = async (e) => {
         e.preventDefault();
         if (!newCategory.trim()) return;
         try {
-            const res = await fetch(`http://localhost:5000/api/admin/categories`, {
+            const res = await fetch(`${API_URL}/admin/categories`, {
                 method: 'POST',
                 headers: { 
                     'Authorization': `Bearer ${token}`,
@@ -124,6 +167,32 @@ const AdminDashboard = () => {
         }
     };
 
+    const handleUpdatePrice = async (e) => {
+        e.preventDefault();
+        setIsUpdatingPrice(true);
+        try {
+            const res = await fetch(`${API_URL}/settings/plan_price`, {
+                method: 'PATCH',
+                headers: { 
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ value: planPrice })
+            });
+            if (res.ok) {
+                alert('Prix du plan mis à jour avec succès !');
+            } else {
+                const data = await res.json();
+                alert(data.error || 'Erreur lors de la mise à jour');
+            }
+        } catch (error) {
+            console.error('Error updating price:', error);
+            alert('Erreur réseau');
+        } finally {
+            setIsUpdatingPrice(false);
+        }
+    };
+
     const filteredUsers = users.filter(u => 
         u.nom.toLowerCase().includes(searchTerm.toLowerCase()) || 
         u.whatsapp.includes(searchTerm)
@@ -133,6 +202,12 @@ const AdminDashboard = () => {
         p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
         p.category.toLowerCase().includes(searchTerm.toLowerCase())
     );
+
+    const getImageUrl = (img) => {
+        if (!img) return 'https://placehold.co/400x400?text=Indisponible';
+        if (img.startsWith('http')) return img;
+        return `${API_URL.replace('/api', '')}${img}`;
+    };
 
     if (loading && !stats) {
         return (
@@ -148,11 +223,11 @@ const AdminDashboard = () => {
             <div className="lg:col-span-3 space-y-4">
                 <div className="bg-white rounded-[32px] p-4 shadow-xl shadow-gray-200/50 border border-gray-100 sticky top-24">
                     <div className="flex items-center gap-4 p-4 border-b border-gray-50 mb-4">
-                        <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center text-primary shrink-0 ring-4 ring-primary/5">
-                            <ShieldCheck size={24} />
+                        <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shrink-0 ring-4 ring-primary/5 p-1 overflow-hidden">
+                            <img src={logo} alt="Logo" className="w-full h-full object-contain" />
                         </div>
                         <div className="min-w-0">
-                            <p className="text-sm font-black text-gray-900 truncate tracking-tight">Admin WhatsPlace</p>
+                            <p className="text-sm font-black text-gray-900 truncate tracking-tight">Admin Grace Service</p>
                             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Connecté</p>
                         </div>
                     </div>
@@ -162,6 +237,7 @@ const AdminDashboard = () => {
                             { id: 'overview', icon: LayoutDashboard, label: 'Tableau de bord' },
                             { id: 'users', icon: Users2, label: 'Utilisateurs' },
                             { id: 'products', icon: ShoppingBag, label: 'Produits' },
+                            { id: 'settings', icon: Settings, label: 'Paramètres' },
                             { id: 'developer', icon: Code2, label: 'Contact Développeur' },
                         ].map((item) => (
                             <button
@@ -182,7 +258,7 @@ const AdminDashboard = () => {
                         <div className="h-px bg-gray-50 my-4 mx-4" />
 
                         <button
-                            onClick={() => { logout(); navigate('/admin/login'); }}
+                            onClick={handleAdminLogout}
                             className="w-full flex items-center gap-3 px-4 py-4 rounded-2xl text-xs font-black uppercase tracking-widest text-red-400 hover:bg-red-50 transition-all focus:outline-none"
                         >
                             <LogOut size={18} />
@@ -293,8 +369,12 @@ const AdminDashboard = () => {
                                                 <tr key={user.id} className="group hover:bg-gray-50 transition-colors">
                                                     <td className="py-5 px-4">
                                                         <div className="flex items-center gap-3">
-                                                            <div className="w-10 h-10 bg-primary/5 rounded-2xl flex items-center justify-center text-primary font-black text-xs">
-                                                                {user.nom[0]}{user.prenom[0]}
+                                                            <div className="w-10 h-10 bg-primary/5 rounded-2xl flex items-center justify-center text-primary font-black text-xs overflow-hidden border border-gray-100">
+                                                                {user.avatar ? (
+                                                                    <img src={getImageUrl(user.avatar)} alt="Avatar" className="w-full h-full object-cover" />
+                                                                ) : (
+                                                                    <span>{user.nom[0]}{user.prenom[0]}</span>
+                                                                )}
                                                             </div>
                                                             <div>
                                                                 <p className="text-sm font-bold text-gray-900 leading-none mb-1">{user.nom} {user.prenom}</p>
@@ -322,30 +402,30 @@ const AdminDashboard = () => {
                                                     <td className="py-5 px-4">
                                                         <div className="flex items-center justify-end gap-2">
                                                             <div className="flex gap-1">
-                                                                <button 
-                                                                    onClick={() => handleActivatePlan(user.id, 'MENSUEL', 1)}
-                                                                    className="px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest bg-emerald-50 text-emerald-500 hover:bg-emerald-500 hover:text-white transition-all"
-                                                                    title="Activer Plan Mensuel"
-                                                                >
-                                                                    1M
-                                                                </button>
-                                                                <button 
-                                                                    onClick={() => handleActivatePlan(user.id, 'TRIMESTRIEL', 3)}
-                                                                    className="px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest bg-blue-50 text-blue-500 hover:bg-blue-500 hover:text-white transition-all"
-                                                                    title="Activer Plan Trimestriel"
-                                                                >
-                                                                    3M
-                                                                </button>
-                                                                {user.plan_status === 'ACTIVE' && (
-                                                                    <button 
-                                                                        onClick={() => handleCancelPlan(user.id)}
-                                                                        className="px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest bg-red-50 text-red-500 hover:bg-red-500 hover:text-white transition-all ml-1"
-                                                                        title="Annuler le plan"
-                                                                    >
-                                                                        X
-                                                                    </button>
-                                                                )}
-                                                            </div>
+                                                                 <button 
+                                                                     onClick={() => handleActivatePlan(user.id, 'PRO', 1)}
+                                                                     className="px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest bg-emerald-50 text-emerald-500 hover:bg-emerald-500 hover:text-white transition-all"
+                                                                     title="Activer Plan PRO (30 jours)"
+                                                                 >
+                                                                     Activer
+                                                                 </button>
+                                                                 <button 
+                                                                     onClick={() => handleResetPassword(user.id)}
+                                                                     className="px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest bg-amber-50 text-amber-500 hover:bg-amber-500 hover:text-white transition-all ml-1"
+                                                                     title="Réinitialiser le mot de passe"
+                                                                 >
+                                                                     <Key size={12} />
+                                                                 </button>
+                                                                 {user.plan_status === 'ACTIVE' && (
+                                                                     <button 
+                                                                         onClick={() => handleCancelPlan(user.id)}
+                                                                         className="px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest bg-red-50 text-red-500 hover:bg-red-500 hover:text-white transition-all ml-1"
+                                                                         title="Annuler le plan"
+                                                                     >
+                                                                         X
+                                                                     </button>
+                                                                 )}
+                                                             </div>
                                                             <button 
                                                                 onClick={() => handleDeleteUser(user.id)}
                                                                 className="w-9 h-9 flex items-center justify-center rounded-xl text-gray-300 hover:text-red-500 hover:bg-red-50 transition-all outline-none"
@@ -388,7 +468,7 @@ const AdminDashboard = () => {
                                     {filteredProducts.map(p => (
                                         <div key={p.id} className="bg-gray-50 p-4 rounded-3xl border border-transparent hover:border-primary/10 transition-all flex gap-4 group">
                                             <div className="w-20 h-20 bg-white rounded-2xl overflow-hidden shrink-0 shadow-sm">
-                                                <img src={p.image} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                                                <img src={getImageUrl(p.image)} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
                                             </div>
                                             <div className="min-w-0 flex-1 flex flex-col justify-between py-1">
                                                 <div className="min-w-0">
@@ -437,6 +517,69 @@ const AdminDashboard = () => {
                         </motion.div>
                     )}
 
+                    {/* SETTINGS TAB */}
+                    {activeTab === 'settings' && (
+                        <motion.div key="settings" layout initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6 max-w-2xl mx-auto">
+                            <div className="bg-white rounded-[32px] p-8 border border-gray-100 shadow-xl shadow-gray-200/50">
+                                <div className="space-y-2 mb-8 text-center">
+                                    <div className="w-16 h-16 bg-primary/10 text-primary rounded-3xl flex items-center justify-center mx-auto mb-4 border border-primary/20">
+                                        <Settings size={32} />
+                                    </div>
+                                    <h2 className="text-2xl font-black text-gray-900 tracking-tight">Configuration Plateforme</h2>
+                                    <p className="text-xs font-bold text-gray-400 uppercase tracking-widest opacity-60">Gérer les paramètres globaux de Grace Service</p>
+                                </div>
+
+                                <div className="space-y-8">
+                                    <div className="p-6 bg-gray-50 rounded-[32px] border border-gray-100/50 space-y-6">
+                                        <div className="space-y-2">
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+                                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Abonnement Vendeur PRO</p>
+                                            </div>
+                                            <h3 className="text-lg font-black text-gray-900 leading-tight">Prix de l'activation (30 jours)</h3>
+                                            <p className="text-xs font-medium text-gray-400">Ce montant sera affiché à tous les vendeurs souhaitant passer en PRO et sera inclus dans le message WhatsApp administrateur.</p>
+                                        </div>
+
+                                        <form onSubmit={handleUpdatePrice} className="space-y-4">
+                                            <div className="relative group">
+                                                <CreditCard className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-primary transition-colors" size={20} />
+                                                <input 
+                                                    type="number" 
+                                                    value={planPrice}
+                                                    onChange={(e) => setPlanPrice(e.target.value)}
+                                                    placeholder="Montant en FCFA..." 
+                                                    className="w-full pl-16 pr-24 py-5 bg-white border-2 border-transparent rounded-[24px] text-lg font-black focus:border-primary/20 focus:ring-4 focus:ring-primary/5 transition-all outline-none shadow-sm"
+                                                    required
+                                                />
+                                                <div className="absolute right-6 top-1/2 -translate-y-1/2 text-sm font-black text-gray-400">FCFA</div>
+                                            </div>
+
+                                            <button 
+                                                type="submit" 
+                                                disabled={isUpdatingPrice}
+                                                className="w-full bg-primary text-white py-5 rounded-[24px] font-black text-sm flex items-center justify-center gap-3 shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50"
+                                            >
+                                                {isUpdatingPrice ? (
+                                                    <Loader2 className="animate-spin" size={20} />
+                                                ) : (
+                                                    <>
+                                                        Enregistrer les modifications
+                                                        <ArrowRight size={20} />
+                                                    </>
+                                                )}
+                                            </button>
+                                        </form>
+                                    </div>
+
+                                    <div className="p-6 border-2 border-dashed border-gray-100 rounded-[32px] flex items-center gap-4 text-gray-400">
+                                        <ShieldCheck size={40} className="shrink-0 opacity-20" />
+                                        <p className="text-[10px] font-bold uppercase tracking-widest leading-relaxed">Les changements de prix s'appliquent instantanément pour tous les nouveaux prospects et les renouvellements.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </motion.div>
+                    )}
+
                     {/* DEVELOPER TAB */}
                     {activeTab === 'developer' && (
                         <motion.div key="developer" layout initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8 max-w-2xl mx-auto">
@@ -449,7 +592,7 @@ const AdminDashboard = () => {
                                         <div className="w-14 h-14 bg-white/10 backdrop-blur-xl rounded-2xl flex items-center justify-center ring-4 ring-white/5">
                                             <Code2 size={28} />
                                         </div>
-                                        <h2 className="text-3xl font-black tracking-tight leading-none">Support Développeur</h2>
+                                        <h2 className="text-3xl font-black tracking-tight leading-none">Support Technique</h2>
                                         <p className="text-primary-light/70 text-sm font-medium max-w-sm">Optimisation et maintenance de votre plateforme marketplace.</p>
                                     </div>
                                     
@@ -473,7 +616,10 @@ const AdminDashboard = () => {
                                     </div>
 
                                     <div className="pt-4 flex gap-4">
-                                        <button className="flex-1 bg-white text-primary-dark py-4 rounded-2xl font-black text-sm flex items-center justify-center gap-3 shadow-xl hover:bg-primary transition-all active:scale-95">
+                                        <button 
+                                            onClick={() => window.open('https://wa.me/+22607158478?text=Bonjour, je souhaite contacter le développeur pour Grace Service.', '_blank')}
+                                            className="flex-1 bg-white text-primary-dark py-4 rounded-2xl font-black text-sm flex items-center justify-center gap-3 shadow-xl hover:bg-primary transition-all active:scale-95"
+                                        >
                                             Me contacter sur WhatsApp
                                             <ChevronRight size={18} />
                                         </button>

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useAuth } from './AuthContext';
+import API_URL from '../utils/config';
 
 const CartContext = createContext();
 
@@ -8,7 +9,6 @@ export const useCart = () => useContext(CartContext);
 export const CartProvider = ({ children }) => {
   const { user, isAuthenticated } = useAuth();
   const [cartItems, setCartItems] = useState([]);
-  const API_URL = 'http://localhost:5000/api';
 
   // Load from LocalStorage or DB
   useEffect(() => {
@@ -81,32 +81,71 @@ export const CartProvider = ({ children }) => {
   };
 
   const removeFromCart = async (id) => {
+    // Find the cart item ID if we only passed product ID
+    const itemToRemove = cartItems.find(item => item.id === id || item.productId === id);
+    if (!itemToRemove) return;
+
     if (isAuthenticated) {
-      // In a real app, delete from DB. For now, backend sync will handle it.
-      setCartItems(prev => prev.filter(item => item.productId !== id));
+      setCartItems(prev => prev.filter(item => item.id !== itemToRemove.id));
+      try {
+        await fetch(`${API_URL}/cart/item/${itemToRemove.id}`, { method: 'DELETE' });
+      } catch (err) {
+        console.error(err);
+      }
     } else {
       setCartItems(prev => {
-        const newCart = prev.filter(item => item.id !== id);
+        const newCart = prev.filter(item => item.id !== id && item.productId !== id);
         localStorage.setItem('cart', JSON.stringify(newCart));
         return newCart;
       });
     }
   };
 
-  const updateQuantity = (id, delta) => {
-    // Optimistic UI for now
+  const updateQuantity = async (id, delta) => {
+    const itemToUpdate = cartItems.find(item => item.id === id || item.productId === id);
+    if (!itemToUpdate) return;
+    
+    const newQuantity = Math.max(1, itemToUpdate.quantity + delta);
+    
+    // Optimistic UI
     setCartItems(prev => prev.map(item => {
-      const matchId = isAuthenticated ? item.productId : item.id;
-      if (matchId === id) {
-        return { ...item, quantity: Math.max(1, item.quantity + delta) };
+      if (item.id === id || item.productId === id) {
+        return { ...item, quantity: newQuantity };
       }
       return item;
     }));
+
+    if (isAuthenticated) {
+      try {
+        await fetch(`${API_URL}/cart/item/${itemToUpdate.id}`, { 
+           method: 'PATCH',
+           headers: { 'Content-Type': 'application/json' },
+           body: JSON.stringify({ quantity: newQuantity })
+        });
+      } catch (err) {
+         console.error(err);
+      }
+    } else {
+      setTimeout(() => {
+        setCartItems(prev => {
+          localStorage.setItem('cart', JSON.stringify(prev));
+          return prev;
+        });
+      }, 0);
+    }
   };
 
-  const clearCart = () => {
+  const clearCart = async () => {
     setCartItems([]);
-    if (!isAuthenticated) localStorage.removeItem('cart');
+    if (isAuthenticated) {
+       try {
+           await fetch(`${API_URL}/cart/clear/${user.id}`, { method: 'DELETE' });
+       } catch(err) {
+           console.error(err);
+       }
+    } else {
+       localStorage.removeItem('cart');
+    }
   };
 
   const totalPrice = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);

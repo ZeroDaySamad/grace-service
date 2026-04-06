@@ -1,12 +1,12 @@
 import express from 'express';
 
-export default function categoryRoutes(db) {
+export default function categoryRoutes(prisma) {
   const router = express.Router();
 
   // Get all categories
   router.get('/', async (req, res) => {
     try {
-      const categories = await db.all('SELECT name FROM Category');
+      const categories = await prisma.category.findMany();
       res.json(categories.map(c => c.name));
     } catch (error) {
       console.error(error);

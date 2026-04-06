@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
 import { Lock, ShieldCheck, ArrowRight, Loader2, Warehouse } from 'lucide-react';
 import { motion } from 'framer-motion';
+import logo from '../../assets/heroassets/Logo dynamique de Grace Service.png';
+import API_URL from '../../utils/config';
 
 const AdminLogin = () => {
     const [whatsapp, setWhatsapp] = useState('');
@@ -10,7 +11,8 @@ const AdminLogin = () => {
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
     const navigate = useNavigate();
-    const { login } = useAuth();
+    // NOTE: Admin uses separate localStorage keys (admin_token/admin_user)
+    // to avoid overwriting the regular user's session
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -18,7 +20,7 @@ const AdminLogin = () => {
         setLoading(true);
 
         try {
-            const response = await fetch('http://localhost:5000/api/auth/login', {
+            const response = await fetch(`${API_URL}/auth/login`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ whatsapp, password }),
@@ -31,7 +33,9 @@ const AdminLogin = () => {
                 throw new Error('Accès réservé aux administrateurs');
             }
 
-            login(data.user, data.token);
+            // Use SEPARATE keys so user session is never affected
+            localStorage.setItem('admin_token', data.token);
+            localStorage.setItem('admin_user', JSON.stringify(data.user));
             navigate('/admin/dashboard');
         } catch (err) {
             setError(err.message);
@@ -48,11 +52,11 @@ const AdminLogin = () => {
                 className="w-full max-w-md bg-white rounded-[32px] shadow-2xl shadow-gray-200/50 border border-gray-100 p-8 md:p-12"
             >
                 <div className="flex flex-col items-center text-center mb-10">
-                    <div className="w-16 h-16 bg-primary/10 rounded-3xl flex items-center justify-center text-primary mb-6 ring-8 ring-primary/5">
-                        <ShieldCheck size={32} />
+                    <div className="w-20 h-20 bg-white rounded-3xl flex items-center justify-center mb-6 ring-8 ring-primary/5 p-2 overflow-hidden shadow-sm">
+                        <img src={logo} alt="Grace Service Logo" className="w-full h-full object-contain" />
                     </div>
                     <h1 className="text-2xl font-black text-gray-900 tracking-tight mb-2">Espace Administration</h1>
-                    <p className="text-sm font-bold text-gray-400 uppercase tracking-widest">WhatsPlace Manager</p>
+                    <p className="text-sm font-bold text-gray-400 uppercase tracking-widest">Grace Service Manager</p>
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-6">

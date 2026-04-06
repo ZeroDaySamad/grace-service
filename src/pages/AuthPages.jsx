@@ -1,10 +1,13 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { MessageCircle, User, Mail, Lock, ArrowRight, UserPlus, LogIn } from 'lucide-react';
+import { MessageCircle, User, Mail, Lock, ArrowRight, UserPlus, LogIn, Eye, EyeOff } from 'lucide-react';
+import logo from '../assets/heroassets/Logo dynamique de Grace Service.png';
+import API_URL from '../utils/config';
 
 export const AuthPages = () => {
     const [isLogin, setIsLogin] = useState(true);
+    const [showPassword, setShowPassword] = useState(false);
     const [formData, setFormData] = useState({
         nom: '', prenom: '', whatsapp: '', email: '', password: ''
     });
@@ -17,10 +20,25 @@ export const AuthPages = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError(null);
+
+        // Validation du format burkinabè (8 chiffres, ou +226/00226 suivi de 8 chiffres)
+        const phoneRegex = /^(?:\+226|00226)?([0-9]{8})$/;
+        if (!phoneRegex.test(formData.whatsapp)) {
+            setError("Le numéro doit être au format burkinabè : 8 chiffres (avec ou sans +226).");
+            return;
+        }
+
+        // Validation du mot de passe
+        const pwdRegex = /^\S{8,}$/;
+        if (!pwdRegex.test(formData.password)) {
+            setError("Le mot de passe doit faire au moins 8 caractères sans aucun espace.");
+            return;
+        }
+
         const endpoint = isLogin ? '/auth/login' : '/auth/register';
         
         try {
-            const res = await fetch(`http://localhost:5000/api${endpoint}`, {
+            const res = await fetch(`${API_URL}${endpoint}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(formData)
@@ -47,14 +65,14 @@ export const AuthPages = () => {
         <div className="max-w-md mx-auto py-12 px-4 animate-in fade-in zoom-in duration-500">
             <div className="bg-white rounded-3xl p-8 border border-gray-100 shadow-xl shadow-gray-200/50">
                 <div className="text-center mb-8">
-                    <div className="inline-flex w-16 h-16 bg-primary/10 text-primary items-center justify-center rounded-2xl mb-4">
-                        {isLogin ? <LogIn size={32} /> : <UserPlus size={32} />}
+                    <div className="inline-flex w-20 h-20 bg-white items-center justify-center rounded-3xl mb-4 p-2 overflow-hidden ring-8 ring-primary/5 shadow-sm">
+                        <img src={logo} alt="Grace Service Logo" className="w-full h-full object-contain" />
                     </div>
                     <h1 className="text-2xl font-black text-gray-900 leading-tight">
                         {isLogin ? 'Bon retour parmi nous' : 'Créer un compte'}
                     </h1>
                     <p className="text-sm text-gray-400 font-medium mt-2">
-                        {isLogin ? 'Connectez-vous pour continuer sur WhatsPlace' : 'Rejoignez la plus grande marketplace locale'}
+                        {isLogin ? 'Connectez-vous pour continuer sur Grace Service' : 'Rejoignez la plus grande marketplace locale'}
                     </p>
                 </div>
 
@@ -86,9 +104,26 @@ export const AuthPages = () => {
                         </div>
                     )}
 
-                    <div className="relative group">
-                        <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-primary transition-colors" size={18} />
-                        <input name="password" type="password" placeholder="Mot de passe" onChange={handleChange} className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-transparent rounded-2xl text-sm focus:bg-white focus:border-primary transition-all" required />
+                    <div className="space-y-1">
+                        <div className="relative group">
+                            <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-primary transition-colors" size={18} />
+                            <input name="password" type={showPassword ? "text" : "password"} placeholder="Mot de passe" onChange={handleChange} className="w-full pl-11 pr-12 py-3 bg-gray-50 border border-transparent rounded-2xl text-sm focus:bg-white focus:border-primary transition-all" required />
+                            <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors">
+                                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                            </button>
+                        </div>
+                        {isLogin && (
+                            <div className="text-right px-2">
+                                <a 
+                                    href={`https://wa.me/22674846759?text=Bonjour Grace Service, j'ai oublié mon mot de passe pour mon compte associé au numéro ${formData.whatsapp || '[Veuillez préciser votre numéro]'}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-[10px] font-bold text-gray-400 hover:text-primary transition-all underline"
+                                >
+                                    Mot de passe oublié ?
+                                </a>
+                            </div>
+                        )}
                     </div>
 
                     <button type="submit" className="w-full bg-primary text-white py-4 rounded-2xl font-black text-sm flex items-center justify-center gap-3 shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all">

@@ -2,24 +2,35 @@ import express from 'express';
 
 const router = express.Router();
 
-export default function cartRoutes(db) {
+export default function cartRoutes(prisma) {
   // Sync LocalStorage to Database on Login
   router.post('/sync', async (req, res) => {
     try {
       const { userId, items } = req.body;
+      const uId = parseInt(userId);
 
-      if (!userId || !items || !Array.isArray(items)) {
+      if (!uId || !items || !Array.isArray(items)) {
         return res.status(400).json({ error: 'Données de synchronisation invalides' });
       }
 
       for (const item of items) {
-        // Upsert logic for each cart item
-        const existing = await db.get('SELECT * FROM CartItem WHERE userId = ? AND productId = ?', [userId, item.id]);
-        if (existing) {
-          await db.run('UPDATE CartItem SET quantity = quantity + ? WHERE id = ?', [item.quantity, existing.id]);
-        } else {
-          await db.run('INSERT INTO CartItem (userId, productId, quantity) VALUES (?, ?, ?)', [userId, item.id, item.quantity]);
-        }
+        // Use Prisma upsert for each cart item
+        await prisma.cartItem.upsert({
+          where: {
+            userId_productId: {
+              userId: uId,
+              productId: parseInt(item.id)
+            }
+          },
+          update: {
+            quantity: { increment: item.quantity }
+          },
+          create: {
+            userId: uId,
+            productId: parseInt(item.id),
+            quantity: item.quantity
+          }
+        });
       }
 
       res.json({ message: 'Panier synchronisé avec succès' });
@@ -33,11 +44,29 @@ export default function cartRoutes(db) {
   router.get('/:userId', async (req, res) => {
     try {
       const { userId } = req.params;
-      const cart = await db.all(`
-        SELECT c.*, p.name, p.price, p.image, p.category 
-        FROM CartItem c JOIN Product p ON c.productId = p.id
-        WHERE c.userId = ?
-      `, [userId]);
+      const rawCart = await prisma.cartItem.findMany({
+        where: { userId: parseInt(userId) },
+        include: {
+          product: {
+            include: {
+              seller: true
+            }
+          }
+        }
+      });
+
+      // Flatten structure to match old SQL format
+      const cart = rawCart.map(c => ({
+        ...c,
+        name: c.product.name,
+        price: c.product.price,
+        image: c.product.image,
+        category: c.product.category,
+        sellerId: c.product.sellerId,
+        sellerPhone: c.product.seller.whatsapp,
+        sellerName: c.product.seller.nom
+      }));
+
       res.json(cart);
     } catch (error) {
       console.error(error);
@@ -49,16 +78,74 @@ export default function cartRoutes(db) {
   router.post('/add', async (req, res) => {
       try {
           const { userId, productId, quantity } = req.body;
-          const existing = await db.get('SELECT * FROM CartItem WHERE userId = ? AND productId = ?', [userId, productId]);
-          if (existing) {
-              await db.run('UPDATE CartItem SET quantity = quantity + ? WHERE id = ?', [quantity || 1, existing.id]);
-          } else {
-              await db.run('INSERT INTO CartItem (userId, productId, quantity) VALUES (?, ?, ?)', [userId, productId, quantity || 1]);
-          }
+          const uId = parseInt(userId);
+          const pId = parseInt(productId);
+
+          await prisma.cartItem.upsert({
+            where: {
+              userId_productId: {
+                userId: uId,
+                productId: pId
+              }
+            },
+            update: {
+              quantity: { increment: quantity || 1 }
+            },
+            create: {
+              userId: uId,
+              productId: pId,
+              quantity: quantity || 1
+            }
+          });
+
           res.json({ message: 'Produit ajouté au panier' });
       } catch (error) {
           console.error(error);
           res.status(500).json({ error: 'Erreur lors de l’ajout au panier' });
+      }
+  });
+
+  // Update item quantity
+  router.patch('/item/:id', async (req, res) => {
+      try {
+          const { id } = req.params;
+          const { quantity } = req.body;
+          await prisma.cartItem.update({
+            where: { id: parseInt(id) },
+            data: { quantity: parseInt(quantity) }
+          });
+          res.json({ message: 'Quantité mise à jour' });
+      } catch (error) {
+          console.error(error);
+          res.status(500).json({ error: 'Erreur lors de la mise à jour' });
+      }
+  });
+
+  // Delete item from cart
+  router.delete('/item/:id', async (req, res) => {
+      try {
+          const { id } = req.params;
+          await prisma.cartItem.delete({
+            where: { id: parseInt(id) }
+          });
+          res.json({ message: 'Produit retiré du panier' });
+      } catch (error) {
+          console.error(error);
+          res.status(500).json({ error: 'Erreur lors de la suppression' });
+      }
+  });
+
+  // Clear user's cart
+  router.delete('/clear/:userId', async (req, res) => {
+      try {
+          const { userId } = req.params;
+          await prisma.cartItem.deleteMany({
+            where: { userId: parseInt(userId) }
+          });
+          res.json({ message: 'Panier vidé' });
+      } catch (error) {
+          console.error(error);
+          res.status(500).json({ error: 'Erreur lors de la suppression du panier' });
       }
   });
 

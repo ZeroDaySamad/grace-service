@@ -1,13 +1,44 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, MessageCircle, ShoppingCart, Star, ShieldCheck, Truck, Clock, UserCheck } from 'lucide-react';
-import { products } from '../utils/dummyData';
+import { ArrowLeft, MessageCircle, ShoppingCart, Star, ShieldCheck, Clock, UserCheck, ChevronRight } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useCart } from '../context/CartContext';
+import API_URL from '../utils/config';
 
 const ProductDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const product = products.find(p => p.id === parseInt(id));
+  const { addToCart } = useCart();
+  const [product, setProduct] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    fetch(`${API_URL}/products/${id}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data && !data.error) {
+          setProduct(data);
+        } else {
+          setProduct(null);
+        }
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error('Error fetching product:', err);
+        setProduct(null);
+        setLoading(false);
+      });
+  }, [id]);
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 gap-4">
+        <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+        <p className="text-gray-500 font-bold">Chargement du produit...</p>
+      </div>
+    );
+  }
 
   if (!product) {
     return (
@@ -18,7 +49,29 @@ const ProductDetail = () => {
     );
   }
 
-  const whatsappUrl = `https://wa.me/${product.seller.phone}?text=Bonjour, je suis intéressé par votre produit : ${product.name} (ID: ${product.id})`;
+  const sellerPhone = product.sellerPhone || (product.seller && product.seller.phone) || "22600000000";
+  const sellerName = product.sellerName || (product.seller && product.seller.name) || "Vendeur";
+  const sellerAvatar = product.sellerAvatar || (product.seller && product.seller.avatar) || "https://api.dicebear.com/7.x/avataaars/svg?seed=seller";
+
+  let phone = sellerPhone.replace(/\D/g, '');
+  if (phone.length === 8) phone = '226' + phone;
+  const whatsappUrl = `https://wa.me/${phone}?text=${encodeURIComponent('Bonjour, je suis intéressé par votre produit : ' + product.name + ' (ID: ' + product.id + ')')}`;
+
+  const getImageUrl = (img) => {
+      if (!img) return 'https://placehold.co/600x600?text=Image+Indisponible';
+      if (img.startsWith('http')) return img;
+      return `${API_URL.replace('/api', '')}${img}`;
+  };
+
+  const handleWhatsAppOrder = async (e) => {
+      e.preventDefault();
+      try {
+          await fetch(`${API_URL}/products/${product.id}/click`, { method: 'POST' });
+      } catch (err) {
+          console.error('Analytics failed', err);
+      }
+      window.open(whatsappUrl, '_blank');
+  };
 
   return (
     <div className="animate-in slide-in-from-right duration-500 max-w-5xl mx-auto">
@@ -41,7 +94,12 @@ const ProductDetail = () => {
                 animate={{ opacity: 1, scale: 1 }}
                 className="aspect-square bg-white rounded-3xl overflow-hidden border border-gray-100 shadow-sm relative group"
             >
-                <img src={product.image} alt={product.name} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
+                <img 
+                    src={getImageUrl(product.image)} 
+                    alt={product.name} 
+                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" 
+                    onError={(e) => e.target.src = 'https://placehold.co/600x600?text=Image+Indisponible'}
+                />
                 
                 {/* Image controls mockup */}
                 <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-2">
@@ -55,7 +113,12 @@ const ProductDetail = () => {
             <div className="grid grid-cols-4 gap-4">
                 {[1, 2, 3, 4].map((i) => (
                     <div key={i} className="aspect-square bg-gray-100 rounded-xl overflow-hidden cursor-pointer hover:ring-2 ring-primary transition-all grayscale hover:grayscale-0">
-                        <img src={product.image} alt="Thumb" className="w-full h-full object-cover" />
+                        <img 
+                            src={getImageUrl(product.image)} 
+                            alt="Thumb" 
+                            className="w-full h-full object-cover" 
+                            onError={(e) => e.target.src = 'https://placehold.co/100x100?text=img'}
+                        />
                     </div>
                 ))}
             </div>
@@ -67,12 +130,6 @@ const ProductDetail = () => {
                 <span className="bg-primary/10 text-primary px-3 py-1 rounded-full text-[10px] font-black tracking-widest uppercase">
                     {product.category}
                 </span>
-                <div className="flex gap-4">
-                    <div className="flex flex-col items-end">
-                        <span className="text-[10px] font-bold text-gray-400">Vues</span>
-                        <span className="text-sm font-black text-gray-900">1.2k+</span>
-                    </div>
-                </div>
             </div>
 
             <h1 className="text-3xl md:text-4xl font-black text-gray-900 mb-4 leading-tight">{product.name}</h1>
@@ -87,66 +144,53 @@ const ProductDetail = () => {
                 </div>
                 <p className="text-gray-500 text-sm leading-relaxed">{product.description}</p>
                 
-                <div className="grid grid-cols-2 gap-4 pt-4">
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-500 shrink-0">
-                            <ShieldCheck size={20} />
-                        </div>
-                        <div className="flex flex-col">
-                            <span className="text-[10px] font-black text-blue-500 uppercase">État</span>
-                            <span className="text-xs font-bold text-gray-900">Neuf</span>
-                        </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-orange-50 flex items-center justify-center text-orange-500 shrink-0">
-                            <Clock size={20} />
-                        </div>
-                        <div className="flex flex-col">
-                            <span className="text-[10px] font-black text-orange-500 uppercase">Livraison</span>
-                            <span className="text-xs font-bold text-gray-900">24H Chrono</span>
-                        </div>
-                    </div>
-                </div>
+                {/* Condition and Delivery removed as requested */}
             </div>
 
             {/* Seller Section */}
             <div className="bg-gray-100/50 rounded-3xl p-6 mb-8 border border-white flex items-center justify-between group">
                 <div className="flex items-center gap-4">
                     <div className="relative">
-                        <img src={product.seller.avatar} alt={product.seller.name} className="w-14 h-14 rounded-2xl object-cover ring-2 ring-white" />
+                        <img 
+                            src={getImageUrl(sellerAvatar)} 
+                            alt={sellerName} 
+                            className="w-14 h-14 rounded-2xl object-cover ring-2 ring-white" 
+                            onError={(e) => e.target.src = 'https://api.dicebear.com/7.x/avataaars/svg?seed=fallback'}
+                        />
                         <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-green-500 border-2 border-white rounded-full flex items-center justify-center text-white">
                             <UserCheck size={10} />
                         </div>
                     </div>
                     <div className="flex flex-col">
                         <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Vendeur vérifié</span>
-                        <h4 className="font-bold text-gray-900 group-hover:text-primary transition-colors">{product.seller.name}</h4>
+                        <h4 className="font-bold text-gray-900 group-hover:text-primary transition-colors">{sellerName}</h4>
                         <div className="flex items-center gap-1 text-xs font-bold text-gray-600">
                             <Star size={12} className="text-yellow-400 fill-yellow-400" />
-                            {product.seller.rating} / 5.0
+                            {product.seller?.rating || 4.8} / 5.0
                         </div>
                     </div>
                 </div>
-                <button className="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-gray-400 hover:text-primary shadow-sm hover:shadow-md transition-all">
+                <Link to={`/seller/${product.sellerId}`} className="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-gray-400 hover:text-primary shadow-sm hover:shadow-md transition-all">
                     <ChevronRight size={20} />
-                </button>
+                </Link>
             </div>
 
             {/* CTAs */}
             <div className="flex flex-col sm:flex-row gap-4 mt-auto">
-                <button className="flex-1 bg-gray-900 text-white px-6 py-3.5 rounded-xl font-bold text-sm flex items-center justify-center gap-3 hover:bg-gray-800 transition-all shadow-lg shadow-gray-200">
+                <button 
+                    onClick={() => addToCart(product)}
+                    className="cursor-pointer flex-1 bg-gray-900 text-white px-6 py-3.5 rounded-xl font-bold text-sm flex items-center justify-center gap-3 hover:bg-gray-800 transition-all shadow-lg shadow-gray-200 active:scale-95"
+                >
                     <ShoppingCart size={20} />
                     Ajouter au Panier
                 </button>
-                <a 
-                    href={whatsappUrl} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="flex-1 bg-primary text-white px-6 py-3.5 rounded-xl font-bold text-sm flex items-center justify-center gap-3 hover:bg-primary-dark transition-all shadow-lg shadow-primary/20"
+                <button 
+                    onClick={handleWhatsAppOrder}
+                    className="cursor-pointer flex-1 bg-primary text-white px-6 py-3.5 rounded-xl font-bold text-sm flex items-center justify-center gap-3 hover:bg-primary-dark transition-all shadow-lg shadow-primary/20 active:scale-95"
                 >
                     <MessageCircle size={20} />
-                    Commander (WhatsApp)
-                </a>
+                    Contacter le vendeur
+                </button>
             </div>
             
             {/* Safety hint */}
@@ -165,6 +209,6 @@ const ProductDetail = () => {
   );
 };
 
-const ChevronRight = ({ size }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>;
+// ChevronRight removed from here as it's imported now
 
 export default ProductDetail;
