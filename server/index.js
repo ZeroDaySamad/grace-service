@@ -29,9 +29,17 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// Important pour Render (Proxies)
+if (process.env.NODE_ENV === 'production') {
+  app.set('trust proxy', 1);
+}
+
 // Prisma Client
 const connectionString = process.env.DATABASE_URL;
-const pool = new Pool({ connectionString });
+const pool = new Pool({ 
+  connectionString,
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+});
 const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({
   adapter,
@@ -62,10 +70,16 @@ const allowedOrigins = [
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow same-origin requests (no origin header) and allowed origins
-    if (!origin || allowedOrigins.includes(origin)) {
+    // Allow same-origin requests, local dev, and anything on .onrender.com
+    if (
+      !origin || 
+      allowedOrigins.includes(origin) || 
+      origin.endsWith('.onrender.com') ||
+      origin === process.env.FRONTEND_URL
+    ) {
       callback(null, true);
     } else {
+      console.warn(`🔒 CORS Blocked origin: ${origin}`);
       callback(new Error('Non autorisé par CORS'));
     }
   },

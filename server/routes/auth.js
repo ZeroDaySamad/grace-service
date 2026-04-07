@@ -40,8 +40,11 @@ export default function authRoutes(prisma) {
 
       res.status(201).json({ message: 'Utilisateur créé avec succès', userId: user.id });
     } catch (error) {
-      console.error(error);
-      res.status(500).json({ error: 'Erreur lors de l’inscription' });
+      console.error('❌ Erreur lors de l’inscription:', error);
+      res.status(500).json({ 
+        error: 'Erreur lors de l’inscription',
+        debug: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
     }
   });
 
