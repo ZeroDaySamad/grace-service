@@ -93,7 +93,7 @@ const Footer = () => {
                                 </div>
                                 <div className="space-y-1">
                                     <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Localisation</p>
-                                    <p className="text-sm font-bold text-gray-900">Ouagadougou, Burkina Faso</p>
+                                    <p className="text-sm font-bold text-gray-900">Gourcy, Burkina Faso</p>
                                 </div>
                             </li>
                             <li className="flex items-start gap-4">

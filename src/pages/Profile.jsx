@@ -521,7 +521,7 @@ const Profile = () => {
                            <MapPin size={12} /> Votre Ville
                         </label>
                         <input 
-                            placeholder="ex: Ouagadougou" 
+                            placeholder="ex: Gourcy" 
                             onChange={(e) => setProData({...proData, ville: e.target.value})}
                             className="w-full px-5 py-4 bg-gray-50 rounded-2xl text-sm focus:bg-white focus:ring-4 focus:ring-primary/10 transition-all border-none"
                         />
