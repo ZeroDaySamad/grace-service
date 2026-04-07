@@ -95,9 +95,22 @@ app.get('/api/health', (req, res) => {
 // ==================== PRODUCTION : Servir le Frontend React ====================
 if (process.env.NODE_ENV === 'production') {
   const clientBuildPath = path.resolve(__dirname, '../dist');
-  console.log(`📂 Serving static files from: ${clientBuildPath}`);
+  console.log(`📂 Attempting to serve static files from: ${clientBuildPath}`);
+
+  // Diagnostic: Vérifier si le dossier existe et lister son contenu
+  import('fs').then(fs => {
+    if (fs.existsSync(clientBuildPath)) {
+      const files = fs.readdirSync(clientBuildPath);
+      console.log(`✅ Dist folder found. Contents: ${files.join(', ')}`);
+    } else {
+      console.error(`❌ Dist folder NOT FOUND at: ${clientBuildPath}`);
+    }
+  }).catch(err => console.error('Error reading dist folder:', err));
   
-  app.use(express.static(clientBuildPath));
+  app.use(express.static(clientBuildPath, {
+    maxAge: '1y',
+    etag: true
+  }));
 
   // Catch-all middleware for SPA navigation - serves index.html for any non-API route
   app.use((req, res, next) => {
@@ -105,9 +118,29 @@ if (process.env.NODE_ENV === 'production') {
     if (req.path.startsWith('/api') || req.path.startsWith('/uploads')) {
       return next();
     }
-    res.sendFile(path.join(clientBuildPath, 'index.html'));
+    
+    // Safety: If requesting an asset that doesn't exist, don't send index.html (fix MIME error)
+    if (req.path.includes('/assets/')) {
+      return res.status(404).send('Asset not found');
+    }
+
+    res.sendFile(path.join(clientBuildPath, 'index.html'), (err) => {
+      if (err) {
+        console.error('Error sending index.html:', err);
+        res.status(500).send('Error loading the application');
+      }
+    });
   });
 }
+
+// Global Error Handler
+app.use((err, req, res, next) => {
+  console.error('💥 Unhandled Error:', err);
+  res.status(500).json({ 
+    error: 'Internal Server Error',
+    message: process.env.NODE_ENV === 'development' ? err.message : undefined 
+  });
+});
 
 app.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
