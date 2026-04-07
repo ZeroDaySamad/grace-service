@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && npm run build --prefix server",
+    "build": "vite build && npm install --prefix server && npm run build --prefix server",
     "start": "node server/index.js",
     "lint": "eslint .",
     "preview": "vite preview"
