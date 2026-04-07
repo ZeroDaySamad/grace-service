@@ -39,7 +39,8 @@ const prisma = new PrismaClient({
 
 // Middleware de Sécurité & Logging
 app.use(helmet({
-  crossOriginResourcePolicy: false, // Nécessaire pour servir des images locales si besoin
+  crossOriginResourcePolicy: false,
+  contentSecurityPolicy: false, // Disable CSP — React build uses inline scripts
 }));
 app.use(morgan('dev'));
 
@@ -54,11 +55,13 @@ app.use('/api/', limiter);
 // Configuration CORS restreinte en production
 const allowedOrigins = [
   'http://localhost:5173',
+  'http://localhost:5000',
   process.env.FRONTEND_URL
 ].filter(Boolean);
 
 app.use(cors({
   origin: (origin, callback) => {
+    // Allow same-origin requests (no origin header) and allowed origins
     if (!origin || allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
@@ -90,11 +93,16 @@ app.get('/api/health', (req, res) => {
 
 // ==================== PRODUCTION : Servir le Frontend React ====================
 if (process.env.NODE_ENV === 'production') {
-  const clientBuildPath = path.join(__dirname, '../dist'); // Vite built output directory
+  const clientBuildPath = path.resolve(__dirname, '../dist');
   
   app.use(express.static(clientBuildPath));
 
-  app.get('*', (req, res) => {
+  // Catch-all middleware for SPA navigation - serves index.html for any non-API route
+  app.use((req, res, next) => {
+    // If it's an API route or an existing file (handled by express.static), skip
+    if (req.path.startsWith('/api') || req.path.startsWith('/uploads')) {
+      return next();
+    }
     res.sendFile(path.join(clientBuildPath, 'index.html'));
   });
 }
