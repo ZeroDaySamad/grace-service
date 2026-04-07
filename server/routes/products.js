@@ -15,14 +15,13 @@ if (!fs.existsSync(uploadsDir)) {
 }
 
 const JWT_SECRET = process.env.JWT_SECRET || 'easymarkey_secret_key';
-const IMGBB_API_KEY = process.env.IMGBB_API_KEY;
 
 const verifyToken = (req, res, next) => {
     const token = req.headers.authorization?.split(' ')[1];
     if (!token) return res.status(401).json({ error: 'Accès non autorisé' });
 
     try {
-        const decoded = jwt.verify(token, JWT_SECRET);
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || JWT_SECRET);
         req.userId = decoded.id;
         req.userRole = decoded.role;
         next();
@@ -52,12 +51,13 @@ const upload = multer({
 });
 
 async function uploadToImgBB(fileBuffer, fileName) {
-    if (!IMGBB_API_KEY) {
+    const apiKey = process.env.IMGBB_API_KEY;
+    if (!apiKey) {
         throw new Error("IMGBB_API_KEY manquante côté serveur (variable d'environnement)");
     }
     const formData = new URLSearchParams();
     formData.append('image', fileBuffer.toString('base64'));
-    formData.append('key', IMGBB_API_KEY);
+    formData.append('key', apiKey);
     formData.append('name', fileName);
 
     const response = await fetch('https://api.imgbb.com/1/upload', {

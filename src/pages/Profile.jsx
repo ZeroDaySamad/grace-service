@@ -109,6 +109,9 @@ const Profile = () => {
     try {
         const res = await fetch(`${API_URL}/products/add`, {
             method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            },
             body: formData
         });
         const data = await res.json();

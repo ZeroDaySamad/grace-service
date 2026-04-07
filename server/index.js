@@ -1,10 +1,13 @@
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
+
 import path from 'path';
 import { fileURLToPath } from 'url';
 
 import { PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
+import { Pool } from 'pg';
 
 // Import des routes
 import authRoutes from './routes/auth.js';
@@ -19,8 +22,6 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
 
-dotenv.config();
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -28,7 +29,11 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 // Prisma Client
+const connectionString = process.env.DATABASE_URL;
+const pool = new Pool({ connectionString });
+const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({
+  adapter,
   log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
 });
 
@@ -85,7 +90,7 @@ app.get('/api/health', (req, res) => {
 
 // ==================== PRODUCTION : Servir le Frontend React ====================
 if (process.env.NODE_ENV === 'production') {
-  const clientBuildPath = path.join(__dirname, '../client/build'); // Change en '../build' si ton dossier React est différent
+  const clientBuildPath = path.join(__dirname, '../dist'); // Vite built output directory
   
   app.use(express.static(clientBuildPath));
 

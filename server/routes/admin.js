@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
+import express from 'express';
 
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'easymarkey_secret_key';
