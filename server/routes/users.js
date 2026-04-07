@@ -206,6 +206,41 @@ export default function userRoutes(prisma) {
       res.status(500).json({ error: 'Erreur lors de la suppression du compte' });
     }
   });
+  
+  // Change Password
+  router.post('/:id/change-password', verifyToken, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const userId = parseInt(id);
+      if (userId !== req.userId) {
+        return res.status(403).json({ error: 'Action non autorisée' });
+      }
+      const { oldPassword, newPassword } = req.body;
+
+      if (!oldPassword || !newPassword) {
+        return res.status(400).json({ error: 'Ancien et nouveau mot de passe requis' });
+      }
+
+      const user = await prisma.user.findUnique({ where: { id: userId } });
+      if (!user) return res.status(404).json({ error: 'Utilisateur non trouvé' });
+
+      const isMatch = await bcrypt.compare(oldPassword, user.password);
+      if (!isMatch) {
+        return res.status(401).json({ error: 'Ancien mot de passe incorrect' });
+      }
+
+      const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+      await prisma.user.update({
+        where: { id: userId },
+        data: { password: hashedNewPassword }
+      });
+
+      res.json({ message: 'Mot de passe mis à jour avec succès' });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ error: 'Erreur lors du changement de mot de passe' });
+    }
+  });
 
   // Admin Activation Mock
   router.patch('/:id/activate', async (req, res) => {
