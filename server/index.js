@@ -95,6 +95,7 @@ app.get('/api/health', (req, res) => {
 // ==================== PRODUCTION : Servir le Frontend React ====================
 if (process.env.NODE_ENV === 'production') {
   const clientBuildPath = path.resolve(__dirname, '../dist');
+  console.log(`📂 Serving static files from: ${clientBuildPath}`);
   
   app.use(express.static(clientBuildPath));
 
